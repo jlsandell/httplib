@@ -12,5 +12,7 @@
 #include <cstdio>
 #include <map>
 #include <vector>
+#include <stdexcept>
+#include <sstream>
 #endif
 

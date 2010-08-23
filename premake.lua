@@ -1,14 +1,14 @@
 
 -- Project ----------------------------------------------------------------------------------
 
-project.name = "foursquare"
+project.name = "urllib"
 project.bindir = "bin"
 
 -- Package ----------------------------------------------------------------------------------
 
 package = newpackage()
 
-package.name = "foursquare"
+package.name = "urllib"
 package.kind = "exe"
 package.language = "c++"
 package.configs = { "Debug", "Release" }
@@ -32,7 +32,8 @@ package.libpaths = {
 
 package.links = {
 "pthread",
-"boost_system"
+"boost_system",
+"boost_regex"
 }
 
 -- pkg-configable stuff ---------------------------------------------------------------------
