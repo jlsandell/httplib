@@ -33,6 +33,7 @@ public:
     std::string data() { return m_data; }
     std::string host() { return m_host; }
     std::string path() { return m_path; }
+    std::string protocol() { return m_proto; }
 };
 
 std::string urlencode_str(const std::string &input);

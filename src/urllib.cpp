@@ -69,6 +69,7 @@ Request::Request(const std::string &uri, const std::string &data) : m_uri(uri), 
         throw std::runtime_error("Invalid url (proto://host)");
     
     m_proto = protohost[0];
+
     // get second two-tuple
     std::vector<std::string> hosturi = splithost(protohost[1]);
 
@@ -78,6 +79,8 @@ Request::Request(const std::string &uri, const std::string &data) : m_uri(uri), 
     m_host = hosturi[0];
     m_path = hosturi[1];
 
+    // if no data is provided, it's a get request, otherwise,
+    // it's a a post
     if (m_data == "")
         m_type = GET;
     else
@@ -99,10 +102,10 @@ std::string urlopen(Request &req)
     using boost::asio::ip::tcp;
     using boost::format;
 
-
     boost::asio::io_service io_service;
     tcp::resolver resolver(io_service);
-    tcp::resolver::query query(req.host(), "http");
+
+    tcp::resolver::query query(req.host(), req.protocol());
 
     tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
     tcp::resolver::iterator end;
