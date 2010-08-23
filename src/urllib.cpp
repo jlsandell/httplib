@@ -78,6 +78,12 @@ Request::Request(const std::string &uri, const std::string &data) : m_uri(uri), 
     m_host = hosturi[0];
     m_path = hosturi[1];
 
+    if (m_data == "")
+        m_type = GET;
+    else
+        m_type = POST;
+        
+
 }
 
 Request::~Request() {}
@@ -93,7 +99,6 @@ std::string urlopen(Request &req)
     using boost::asio::ip::tcp;
     using boost::format;
 
-    std::ostringstream response_string;
 
     boost::asio::io_service io_service;
     tcp::resolver resolver(io_service);
@@ -139,9 +144,11 @@ std::string urlopen(Request &req)
 
     std::istream response_stream(&response);
     std::string http_version;
+
     response_stream >> http_version;
     unsigned int status_code;
     response_stream >> status_code;
+
     std::string status_message;
     std::getline(response_stream, status_message);
 
@@ -150,9 +157,12 @@ std::string urlopen(Request &req)
 
     if (status_code != 200)
     {
-        response_string << "Response returned with status code " << status_code;
-        return response_string.str();
+        std::stringstream error_string;
+        error_string << format("Response returned with status code %s") % status_code;
+        return error_string.str();
     }
+
+    std::ostringstream response_string;
 
     // Read the response headers, which are terminated by a blank line.
     boost::asio::read_until(socket, response, "\r\n\r\n");
@@ -160,27 +170,27 @@ std::string urlopen(Request &req)
     // Process the response headers.
     std::string header;
 
-    while (std::getline(response_stream, header) && header != "\r")
-    {
-        //std::cout << "OOK\t::\t" << header << "\n";
-    }
-    //std::cout << "\n";
+    // TODO: add parsing headers, sticking them into a response object.
+    while (std::getline(response_stream, header) && header != "\r") {}
 
+    boost::asio::streambuf::const_buffers_type bufs = response.data();
+
+#if 0
     // Write whatever content we already have to output.
     if (response.size() > 0)
     {
-        response_string << response;
+        response_string.append(bufs);
+
         //std::cout << &response;
     }
+#endif 
 
     // Read until EOF, writing data to output as we go.
-    while (boost::asio::read(socket, response,
-          boost::asio::transfer_at_least(1), error))
+    while (boost::asio::read(socket, response, boost::asio::transfer_at_least(1), error))
     {
-
-        //std::cout << &response;
-        response_string << response;
+        response_string << &response;
     }
+
     if (error != boost::asio::error::eof)
       throw boost::system::system_error(error);
 
@@ -241,7 +251,8 @@ int main(int argc, char **argv)
     using boost::format;
     urllib::Request req("http://dev.local.lan/");
     std::cout << req.host() << std::endl;
-    //std::cout << urllib::urlopen(req) << std::endl;
+    std::cout << (req.type() == urllib::GET) << std::endl;
+    std::cout << urllib::urlopen(req) << std::endl;
     return 0;
 }
 #endif 
