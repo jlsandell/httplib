@@ -1,0 +1,1 @@
+This is intended to be an implementation of Python's urllib/urllib2, in C++, leveraging boost::asio (and other boost libraries, such as regex).
