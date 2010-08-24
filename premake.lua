@@ -9,7 +9,7 @@ project.bindir = "bin"
 package = newpackage()
 
 package.name = "httplib"
-package.kind = "exe"
+package.kind = "dll"
 package.language = "c++"
 package.configs = { "Debug", "Release" }
 
