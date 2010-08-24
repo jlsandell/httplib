@@ -132,6 +132,7 @@ void Request::addheader(const std::string &key, const std::string &value)
 void Request::init(const std::string &uri)
 {
     m_headers["User-Agent"] = "C++ urllib/v0.0.1";
+    m_headers["Accept"] = "*/*";
 
     // get first set of two-tuples from uri
     std::vector<std::string> protohost = splittype(uri);
@@ -213,14 +214,15 @@ std::string urlopen(Request &req)
     for (std::map<std::string, std::string>::iterator iter = headers.begin(); iter != headers.end(); iter++)
         request_stream << format("%s: %s\r\n") % iter->first % iter->second;
 
-    request_stream << "Accept: */*\r\n";
+    request_stream << "Connection: close\r\n\r\n";
 
     if (req.type() == POST)
     {
         request_stream << format("%s\r\n") % req.payload();
     }
         
-    request_stream << "Connection: close\r\n\r\n";
+
+    //std::cout << format("DEBUG\n%s\nEND DEBUG\n") % &request;
 
     boost::asio::write(socket, request);
 
@@ -232,6 +234,7 @@ std::string urlopen(Request &req)
 
     response_stream >> http_version;
     unsigned int status_code;
+
     response_stream >> status_code;
 
     std::string status_message;
@@ -292,11 +295,9 @@ int main(int argc, char **argv)
     map<string, string> poast;
     poast["foo"] = "bar";
 
-    httplib::Request req("http://dev.local.lan/debug/?foo=bar");
-    
-    cout << req.host() << endl;
-    cout << (req.type() == httplib::POST) << endl;
+    httplib::Request req("http://dev.local.lan/debug/", poast);
     cout << httplib::urlopen(req) << endl;
+
     return 0;
 }
 #endif 
