@@ -1,14 +1,14 @@
 
 -- Project ----------------------------------------------------------------------------------
 
-project.name = "urllib"
+project.name = "httplib"
 project.bindir = "bin"
 
 -- Package ----------------------------------------------------------------------------------
 
 package = newpackage()
 
-package.name = "urllib"
+package.name = "httplib"
 package.kind = "exe"
 package.language = "c++"
 package.configs = { "Debug", "Release" }

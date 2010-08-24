@@ -1,7 +1,7 @@
 #include "common.h"
-#include "urllib.h"
+#include "httplib.h"
 
-namespace urllib {
+namespace httplib {
 
 /**
 Split a protocol://hostname/path into a vector of (protocol, restofurl)
@@ -35,10 +35,11 @@ std::vector<std::string> splittype(const std::string &s)
 
 std::vector<std::string> splithost(const std::string &s)
 {
-    // protocol
+    // hostname, path
     std::vector<std::string> values;
     boost::regex re("^//([^/?]*)(.*)$");
     boost::cmatch matches;
+
 
     if (boost::regex_match(s.c_str(), matches, re) && matches.size() == 3)
     {
@@ -58,7 +59,77 @@ std::vector<std::string> splithost(const std::string &s)
     return values;
 }
 
-Request::Request(const std::string &uri, const std::string &data) : m_uri(uri), m_data(data)
+
+std::string urlencode_str(const std::string &input)
+{
+    char buffer[4];
+    std::string encoded;
+
+    // XXX: Would a stringstream be faster?
+    for(std::string::const_iterator iter = input.begin(); iter != input.end(); iter++)
+    {
+        unsigned short ascii = *iter;
+
+        if((ascii > 47 && ascii < 58) || (ascii > 64 && ascii < 91) || (ascii > 96 && ascii < 123))
+            encoded += *iter;
+
+        else if (ascii == 32)
+            encoded += "+";
+
+        else
+        {
+            ::snprintf(buffer, 4, "%%%.2x", ascii);
+            encoded += buffer;
+        }
+    }
+
+    return encoded;
+}
+
+/*
+    Convert a std::map of two std::string objects to a url-encoded string.
+*/
+
+std::string urlencode(const std::map<std::string,std::string> &argmap)
+{
+    std::string encoded;
+
+    // XXX: Would a stringstream be faster?
+    for (std::map<std::string, std::string>::const_iterator iter = argmap.begin(); iter != argmap.end(); iter++)
+        encoded += urlencode_str(iter->first) + "=" + urlencode_str(iter->second) + "&";
+
+    // Remove the last ampersand.
+    return encoded.erase(encoded.size() -1, 1);
+}
+
+
+// For get requests
+Request::Request(const std::string &uri) : m_uri(uri)
+{
+    init(uri);
+    m_type = GET;
+}
+
+// For post requests.
+Request::Request(const std::string &uri, const std::map<std::string, std::string> &postdata) : m_uri(uri), m_data(postdata)
+{
+    init(uri);
+    m_type = POST;
+    m_payload = urlencode(postdata);
+    m_headers["Content-type"] = "application/x-www-form-urlencoded";
+    std::ostringstream len;
+    len << m_payload.length();
+    m_headers["Content-length"] = len.str();
+}
+
+Request::~Request() {}
+
+void Request::addheader(const std::string &key, const std::string &value)
+{
+    m_headers[key] = value;
+}
+
+void Request::init(const std::string &uri)
 {
     m_headers["User-Agent"] = "C++ urllib/v0.0.1";
 
@@ -78,25 +149,19 @@ Request::Request(const std::string &uri, const std::string &data) : m_uri(uri), 
 
     m_host = hosturi[0];
     m_path = hosturi[1];
-
-    // if no data is provided, it's a get request, otherwise,
-    // it's a a post
-    if (m_data == "")
-        m_type = GET;
-    else
-        m_type = POST;
-        
-
 }
 
-Request::~Request() {}
 
-void Request::addheader(const std::string &key, const std::string &value)
+
+std::string Request::getheader(const std::string &key)
 {
-    m_headers[key] = value;
+    // FIXME: make sure that header exists before returning it. Right now this
+    // will create an empty entry in the header map if the key doesn't exist.
+
+    return m_headers[key];
 }
 
-// really retardedly basic version of python's urlopen
+// Really retardedly basic version of python's urllib2.urlopen
 std::string urlopen(Request &req)
 {
     using boost::asio::ip::tcp;
@@ -122,14 +187,25 @@ std::string urlopen(Request &req)
     if (error)
       throw boost::system::system_error(error);
 
+
+    // We have a connection!
     boost::asio::streambuf request;
     std::ostream request_stream(&request);
 
-    // no data string given, so it's a get request.
-    //if (data == "")
-    //XXX: default to get until we implement POST
+    switch (req.type())
+    {
+        case GET:
+            request_stream << format("GET %s HTTP/1.0\r\n") % req.path();
+            break;
 
-    request_stream << format("GET %s HTTP/1.0\r\n") % req.path();
+        case POST:
+            request_stream << format("POST %s HTTP/1.0\r\n") % req.path();
+            break;
+        
+        default:
+            throw std::runtime_error("Not implemented.");
+    }
+
     request_stream << format("Host: %s\r\n") % req.host();
 
     std::map<std::string, std::string> headers = req.headers();
@@ -138,6 +214,12 @@ std::string urlopen(Request &req)
         request_stream << format("%s: %s\r\n") % iter->first % iter->second;
 
     request_stream << "Accept: */*\r\n";
+
+    if (req.type() == POST)
+    {
+        request_stream << format("%s\r\n") % req.payload();
+    }
+        
     request_stream << "Connection: close\r\n\r\n";
 
     boost::asio::write(socket, request);
@@ -174,6 +256,7 @@ std::string urlopen(Request &req)
     std::string header;
 
     // TODO: add parsing headers, sticking them into a response object.
+    // For now we just toss them away.
     while (std::getline(response_stream, header) && header != "\r") {}
 
     boost::asio::streambuf::const_buffers_type bufs = response.data();
@@ -190,58 +273,12 @@ std::string urlopen(Request &req)
 
     // Read until EOF, writing data to output as we go.
     while (boost::asio::read(socket, response, boost::asio::transfer_at_least(1), error))
-    {
         response_string << &response;
-    }
 
     if (error != boost::asio::error::eof)
       throw boost::system::system_error(error);
 
     return response_string.str();
-}
-
-
-
-std::string urlencode_str(const std::string &input)
-{
-    char buffer[4];
-    std::string encoded;
-
-    // XXX: Would a stringstream be faster?
-    for(std::string::const_iterator iter = input.begin(); iter != input.end(); iter++)
-    {
-        unsigned short ascii = *iter;
-
-        if((ascii > 47 && ascii < 58) || (ascii > 64 && ascii < 91) || (ascii > 96 && ascii < 123))
-            encoded += *iter;
-
-        else if (ascii == 32)
-            encoded += "+";
-
-        else
-        {
-            ::snprintf(buffer, 4, "%%%.2x", ascii);
-            encoded += buffer;
-        }
-    }
-
-    return encoded;
-}
-
-/*
-    Convert a std::map of two std::string objects to a url-encoded string.
-*/
-
-std::string urlencode(std::map<std::string,std::string> &argmap)
-{
-    std::string encoded;
-
-    // XXX: Would a stringstream be faster?
-    for (std::map<std::string, std::string>::iterator iter = argmap.begin(); iter != argmap.end(); iter++)
-        encoded += urlencode_str(iter->first) + "=" + urlencode_str(iter->second) + "&";
-
-    // Remove the last ampersand.
-    return encoded.erase(encoded.size() -1, 1);
 }
 
 };
@@ -252,10 +289,14 @@ int main(int argc, char **argv)
 {
     using namespace std;
     using boost::format;
-    urllib::Request req("http://dev.local.lan/");
-    std::cout << req.host() << std::endl;
-    std::cout << (req.type() == urllib::GET) << std::endl;
-    std::cout << urllib::urlopen(req) << std::endl;
+    map<string, string> poast;
+    poast["foo"] = "bar";
+
+    httplib::Request req("http://dev.local.lan/debug/?foo=bar");
+    
+    cout << req.host() << endl;
+    cout << (req.type() == httplib::POST) << endl;
+    cout << httplib::urlopen(req) << endl;
     return 0;
 }
 #endif 
