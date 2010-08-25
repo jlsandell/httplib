@@ -52,5 +52,7 @@ public:
 std::string urlencode_str(const std::string &input);
 std::string urlencode(const std::map<std::string,std::string> &argmap);
 std::string urlopen(const Request &req);
+std::string b64encode(std::string &input);
+
 };
 #endif 

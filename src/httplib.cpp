@@ -102,6 +102,55 @@ std::string urlencode(const std::map<std::string,std::string> &argmap)
     return encoded.erase(encoded.size() -1, 1);
 }
 
+/* I think this is right... */
+
+std::string b64encode(std::string input)
+{
+    std::string output;
+
+    const char character_table [] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const char pad_character = '=';
+    long temp;
+
+    output.reserve(((input.size()/3) + (input.size() % 3 > 0)) * 4);
+    std::string::iterator cursor = input.begin();
+
+    for(size_t idx = 0; idx < input.size()/3; idx++)
+    {
+        temp  = (*cursor++) << 16; //Convert to big endian
+        temp += (*cursor++) << 8;
+        temp += (*cursor++);
+
+        output.append(1, character_table[(temp & 0x00FC0000) >> 18]);
+        output.append(1, character_table[(temp & 0x0003F000) >> 12]);
+        output.append(1, character_table[(temp & 0x00000FC0) >> 6]);
+        output.append(1, character_table[(temp & 0x0000003F)]);
+    }
+
+    switch(input.size() % 3)
+    {
+        case 1:
+            temp  = (*cursor++) << 16; //Convert to big endian
+
+            output.append(1,character_table[(temp & 0x00FC0000) >> 18]);
+            output.append(1,character_table[(temp & 0x0003F000) >> 12]);
+            output.append(2,pad_character);
+            break;
+
+        case 2:
+            temp  = (*cursor++) << 16; //Convert to big endian
+            temp += (*cursor++) << 8;
+
+            output.append(1,character_table[(temp & 0x00FC0000) >> 18]);
+            output.append(1,character_table[(temp & 0x0003F000) >> 12]);
+            output.append(1,character_table[(temp & 0x00000FC0) >> 6 ]);
+            output.append(1,pad_character);
+            break;
+    }
+
+    return output;
+}
+
 
 // For get requests
 Request::Request(const std::string &uri) : m_uri(uri)
